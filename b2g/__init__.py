@@ -8,10 +8,12 @@ PERMANOVA-based prior selection.
 __version__ = "0.1.0"
 
 from .config import AnalysisConfig
+from .arms_auto import build_harmony_arms_evaluator
 from .grouping import group_batches
 
 __all__ = [
     'AnalysisConfig',
+    'build_harmony_arms_evaluator',
     'group_batches',
     '__version__',
 ]
@@ -21,6 +23,7 @@ def group(
     adata,
     batch_key='batch',
     method='metacell',
+    mode='tree',
     additional_features=None,
     target_metacell_size=48,
     leiden_resolution=1.0,
@@ -113,6 +116,7 @@ def group(
     # Set basic parameters
     config.column_mapping = {'batch': batch_key}
     config.clustering_method = method
+    config.grouping_mode = mode
 
     # Set additional features
     if additional_features is not None:

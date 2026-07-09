@@ -21,6 +21,10 @@ class AnalysisConfig:
 
         # 3. Additional features configuration
         self.additional_features = []
+        self.grouping_mode = 'tree'
+        self.mode_candidates = ('tree', 'split', 'prior')
+        self.mode_evaluator = None
+        self.combined_prior_separator = ' | '
 
         # Method parameters
         self.b2g_min_priors = 1
@@ -58,6 +62,8 @@ class AnalysisConfig:
         self.b2g_dynamic_tree_params = {
             'min_cluster_size': 2,
             'deep_split': 2,
+            'pam_stage': True,
+            'pam_respects_dendro': True,
             'unassigned_as_outlier_group': True
         }
 
@@ -72,6 +78,12 @@ class AnalysisConfig:
             raise ValueError(f"!!! Invalid clustering method: {self.clustering_method}. Please choose 'metacell' or 'leiden'")
 
         print(f"| Clustering method: {self.clustering_method.upper()}")
+        if self.grouping_mode not in ['tree', 'split', 'prior', 'auto']:
+            raise ValueError(
+                f"!!! Invalid grouping mode: {self.grouping_mode}. "
+                f"Please choose 'tree', 'split', 'prior', or 'auto'"
+            )
+        print(f"| Grouping mode: {self.grouping_mode}")
 
         # Check additional features configuration
         if len(self.additional_features) == 0:

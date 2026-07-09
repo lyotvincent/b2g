@@ -89,6 +89,7 @@ b2g.group(
     adata, 
     batch_key='donor_id',
     method='metacell',
+    mode='tree',
     target_metacell_size=48,
     key_added='groups'
 )
@@ -122,6 +123,7 @@ adata_subset = adata[adata.obs['cell_type'] == 'Endothelial cells'].copy()
 b2g.group(
     adata_subset,
     batch_key='donor_id',
+    mode='tree',
     additional_features=[
         {'column': 'disease', 'description': 'Disease status'},
         {'column': 'sex', 'description': 'Biological sex'},
@@ -150,6 +152,7 @@ b2g.group(
     adata,
     batch_key='donor_id',
     method='leiden',
+    mode='tree',
     leiden_resolution=1.0,
     additional_features=[
         {'column': 'disease', 'description': 'Disease status'},
@@ -160,6 +163,75 @@ b2g.group(
     met_path='b2g_leiden_results/metrics',
     key_added='groups'
 )
+```
+
+### Grouping Modes
+
+B2G supports four grouping modes through the `mode` parameter:
+
+- `tree` (default): original GitHub behavior; dynamic tree cut with PAM refinement and all unassigned batches merged into one outlier group
+- `split`: dynamic tree cut without PAM refinement; unassigned batches are split into individual groups
+- `prior`: only performs prior selection, then directly uses the selected prior combination as the final grouping key
+- `auto`: evaluates candidate modes and selects the best one using an external evaluator, such as Harmony + ARMS
+
+Example:
+
+```python
+b2g.group(
+    adata,
+    batch_key='donor_id',
+    mode='split',
+    additional_features=[
+        {'column': 'disease', 'description': 'Disease status'},
+        {'column': 'sex', 'description': 'Biological sex'},
+    ],
+    key_added='groups'
+)
+```
+
+### Auto Mode with Harmony + ARMS Selection
+
+```python
+import scanpy as sc
+import b2g
+
+adata = sc.read_h5ad("your_data.h5ad")
+
+evaluator = b2g.build_harmony_arms_evaluator(
+    batch_key="donor_id",
+    reference_cluster_key="cell_type",
+)
+
+adata = b2g.group(
+    adata,
+    batch_key="donor_id",
+    method="metacell",
+    mode="auto",
+    additional_features=[
+        {'column': 'disease', 'description': 'Disease status'},
+        {'column': 'sex', 'description': 'Biological sex'},
+    ],
+    mode_evaluator=evaluator,
+    key_added="groups",
+    copy=True,
+)
+
+print(adata.uns["b2g_grouping_mode"])
+print(adata.uns["b2g_mode_selection"])
+```
+
+### Command-Line Auto Selection Script
+
+An example script is provided at `scripts/select_best_mode_by_arms.py`.
+
+```bash
+python scripts/select_best_mode_by_arms.py \
+  --input your_data.h5ad \
+  --output grouped_auto.h5ad \
+  --batch-key donor_id \
+  --reference-cluster-key cell_type \
+  --method metacell \
+  --additional-features disease sex
 ```
 
 
@@ -173,6 +245,7 @@ b2g.group(
 | `adata` | AnnData | Required | AnnData object with raw counts |
 | `batch_key` | str | `'batch'` | Column name in `.obs` for batches |
 | `method` | str | `'metacell'` | Clustering method: `'metacell'` or `'leiden'` |
+| `mode` | str | `'tree'` | Grouping mode: `'tree'`, `'split'`, `'prior'`, or `'auto'` |
 | `additional_features` | list | `None` | Biological priors (see format below) |
 | `target_metacell_size` | int | `48` | Target metacell size (metacell method only) |
 | `leiden_resolution` | float | `1.0` | Leiden resolution (leiden method only) |
@@ -183,6 +256,7 @@ b2g.group(
 | `fig_path` | str | `None` | Figures directory path |
 | `met_path` | str | `None` | Metrics directory path |
 | `key_added` | str | `None` | Column name for grouping results |
+| `mode_evaluator` | callable | `None` | Required when `mode='auto'`; receives candidate grouping results and returns the best mode |
 
 ### Additional Features Format
 
@@ -208,6 +282,8 @@ additional_features = [
 
 - `adata.obs[key_added]`: Batch group assignments (e.g., 'G1', 'G2', 'G3')
 - Additional columns created during processing (e.g., `metacell`, `prior_group`)
+- `adata.uns['b2g_grouping_mode']`: Final grouping mode used
+- `adata.uns['b2g_mode_selection']`: Auto-mode selection payload when `mode='auto'`
 
 ### Output Files (if paths specified)
 

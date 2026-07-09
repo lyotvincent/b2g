@@ -3,6 +3,7 @@ Utility functions
 """
 
 import numpy as np
+import pandas as pd
 import scipy.sparse
 import scanpy as sc
 
@@ -95,6 +96,37 @@ def detect_raw_counts(adata):
     )
 
 
+def normalize_metadata_series(series, missing_label="__MISSING__"):
+    """
+    Normalize metadata to robust string categories.
+    """
+    normalized = series.astype(object).copy()
+    normalized[pd.isna(normalized)] = missing_label
+    normalized = normalized.map(lambda value: str(value).strip())
+    normalized = normalized.replace({
+        "": missing_label,
+        "nan": missing_label,
+        "None": missing_label,
+        "<NA>": missing_label,
+    })
+    return normalized.astype("category")
+
+
+def get_normalized_metadata_series(adata, column_name, missing_label="__MISSING__"):
+    if column_name not in adata.obs.columns:
+        raise KeyError(f"Column not found: {column_name}")
+
+    series = adata.obs[column_name]
+    if not pd.api.types.is_categorical_dtype(series):
+        return normalize_metadata_series(series, missing_label=missing_label)
+
+    categories = list(series.cat.categories)
+    if any(not isinstance(value, str) for value in categories) or series.isna().any():
+        return normalize_metadata_series(series, missing_label=missing_label)
+
+    return series
+
+
 def compute_weighted_distance_matrix(Z, alpha=2.0):
     """
     Weighted Euclidean distance calculation based on power function weights
@@ -120,14 +152,24 @@ def compute_weighted_distance_matrix(Z, alpha=2.0):
     return distance_matrix_square, squareform(distance_matrix_square)
 
 
-def dynamic_tree_cut_python(Z, distance_matrix_square, min_cluster_size=2, deep_split=2):
+def dynamic_tree_cut_python(
+    Z,
+    distance_matrix_square,
+    min_cluster_size=2,
+    deep_split=2,
+    pam_stage=True,
+    pam_respects_dendro=True,
+):
     """
     Dynamic tree cutting using Python's dynamicTreeCut package
     """
     from dynamicTreeCut import cutreeHybrid
 
     print(f"\nUsing Python dynamicTreeCut for dynamic tree cutting...")
-    print(f"  Parameters: minClusterSize={min_cluster_size}, deepSplit={deep_split}")
+    print(
+        f"  Parameters: minClusterSize={min_cluster_size}, deepSplit={deep_split}, "
+        f"pamStage={pam_stage}, pamRespectsDendro={pam_respects_dendro}"
+    )
 
     try:
         result = cutreeHybrid(
@@ -135,8 +177,8 @@ def dynamic_tree_cut_python(Z, distance_matrix_square, min_cluster_size=2, deep_
             distance_matrix_square,
             minClusterSize=min_cluster_size,
             deepSplit=deep_split,
-            pamStage=True,
-            pamRespectsDendro=True
+            pamStage=pam_stage,
+            pamRespectsDendro=pam_respects_dendro
         )
 
         # Get cluster labels
@@ -154,3 +196,18 @@ def dynamic_tree_cut_python(Z, distance_matrix_square, min_cluster_size=2, deep_
     except Exception as e:
         print(f"!!! Dynamic tree cutting failed: {e}")
         raise
+
+
+def assign_unassigned_as_individual_groups(cluster_labels):
+    cluster_labels = np.array(cluster_labels, copy=True)
+    unassigned_indices = np.where(cluster_labels == 0)[0]
+    if unassigned_indices.size == 0:
+        return cluster_labels, []
+
+    next_label = int(cluster_labels.max()) + 1 if np.any(cluster_labels > 0) else 1
+    assigned_groups = []
+    for index in unassigned_indices:
+        cluster_labels[index] = next_label
+        assigned_groups.append(next_label)
+        next_label += 1
+    return cluster_labels, assigned_groups

@@ -9,6 +9,8 @@ from scipy.stats import chi2_contingency
 from sklearn.metrics import euclidean_distances
 import scipy.sparse
 
+from .utils import get_normalized_metadata_series
+
 
 try:
     from skbio import DistanceMatrix
@@ -22,11 +24,14 @@ def detect_prior_confounding(adata, prior_column, batch_column):
     """
     Check if prior spans multiple batches
     """
+    prior_series = get_normalized_metadata_series(adata, prior_column)
+    batch_series = get_normalized_metadata_series(adata, batch_column)
+
     # Count mapping relationships
     prior_to_batches = {}
-    for prior_val in adata.obs[prior_column].unique():
-        mask = adata.obs[prior_column] == prior_val
-        prior_to_batches[prior_val] = len(adata.obs.loc[mask, batch_column].unique())
+    for prior_val in prior_series.unique():
+        mask = prior_series == prior_val
+        prior_to_batches[str(prior_val)] = len(pd.unique(batch_series.loc[mask]))
 
     n_priors = len(prior_to_batches)
     prior_one_to_one_ratio = sum(1 for n in prior_to_batches.values() if n == 1) / n_priors
@@ -43,7 +48,7 @@ def detect_prior_confounding(adata, prior_column, batch_column):
         confounding_type, warning_flag = "Independent", False
 
     print(f"    Prior→Batch mapping:")
-    for prior, n_batches in sorted(prior_to_batches.items()):
+    for prior, n_batches in sorted(prior_to_batches.items(), key=lambda item: item[0]):
         print(f"      {'!!!' if n_batches == 1 else '|'} {prior}: {n_batches} batches")
     print(f"    One-to-one ratio: {prior_one_to_one_ratio:.0%}")
     print(f"    Confounding type: {confounding_type}")
@@ -65,12 +70,16 @@ def detect_prior_collinearity(adata, prior_columns, threshold=0.95):
 
     n_priors = len(prior_columns)
     association_matrix = np.zeros((n_priors, n_priors))
+    normalized_priors = {
+        prior: get_normalized_metadata_series(adata, prior)
+        for prior in prior_columns
+    }
 
     # Calculate Cramér's V coefficient
     for i, prior1 in enumerate(prior_columns):
         for j in range(i + 1, n_priors):
             prior2 = prior_columns[j]
-            contingency_table = pd.crosstab(adata.obs[prior1], adata.obs[prior2])
+            contingency_table = pd.crosstab(normalized_priors[prior1], normalized_priors[prior2])
             chi2, _, _, _ = chi2_contingency(contingency_table)
             n = contingency_table.sum().sum()
             min_dim = min(contingency_table.shape[0], contingency_table.shape[1]) - 1
@@ -164,6 +173,8 @@ def evaluate_prior_with_permanova(adata, prior_column, use_embedding='X_pca',
         return {'F_statistic': 0.0, 'p_value': 1.0, 'df_between': 0,
                 'df_within': 0, 'method': 'fallback', 'n_cells_used': 0}
 
+    grouping_series = get_normalized_metadata_series(adata, prior_column)
+
     # Get data
     if use_embedding in adata.obsm:
         X_original = adata.obsm[use_embedding]
@@ -179,10 +190,10 @@ def evaluate_prior_with_permanova(adata, prior_column, use_embedding='X_pca',
             np.random.seed(random_seed)
         sample_indices = np.sort(np.random.choice(n_cells, downsample_size, replace=False))
         X_sampled = X_original[sample_indices]
-        grouping_sampled = adata.obs[prior_column].values[sample_indices]
+        grouping_sampled = grouping_series.values[sample_indices]
     else:
         X_sampled = X_original
-        grouping_sampled = adata.obs[prior_column].values
+        grouping_sampled = grouping_series.values
 
     # Calculate distance matrix
     print(f"    Computing distance matrix... ({X_sampled.shape[0]:,} × {X_sampled.shape[0]:,})")
@@ -234,7 +245,7 @@ def comprehensive_prior_evaluation(adata, config, prior_column, batch_column,
     print(f"\n  Evaluating prior: {prior_column}")
     print("  " + "-" * 66)
 
-    n_categories = len(adata.obs[prior_column].unique())
+    n_categories = len(pd.unique(get_normalized_metadata_series(adata, prior_column)))
     print(f"    Number of categories: {n_categories}")
 
     # Multiple downsampling evaluations (if needed)
