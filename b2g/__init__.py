@@ -5,7 +5,7 @@ A tool for intelligent batch grouping using metacells/leiden clustering and
 PERMANOVA-based prior selection.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.1.4"
 
 from .config import AnalysisConfig
 from .arms_auto import build_harmony_arms_evaluator

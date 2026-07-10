@@ -9,7 +9,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="b2g_tools",
-    version="0.1.3",
+    version="0.1.4",
     author="B2G Development Team",
     description="Adaptive batch grouping for single-cell RNA-seq data using metacells/leiden clustering and PERMANOVA-based prior selection",
     long_description=long_description,
