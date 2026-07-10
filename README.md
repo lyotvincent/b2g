@@ -2,7 +2,7 @@
 
 **B2G** (Batch-to-Group) is an intelligent batch grouping tool for single-cell RNA-seq data that combines metacell/Leiden clustering with PERMANOVA-based prior selection.
 
-![img.png](img.png)
+![Figure1.png](Figure1.png)
 ---
 
 
@@ -10,30 +10,21 @@
 
 ### Motivation
 
-Recent studies increasingly focus on dissecting cellular subpopulations from single-cell atlases of longitudinal clinical cohorts. However, residual batch effects within these subpopulations are difficult to eliminate due to their highly similar cellular states. Existing methods typically process samples individually during subpopulation-level batch correction, failing to recognize that patients with similar clinical metadata often form batch-effect-free groups. This leads to over-correction and loss of biologically meaningful signals.
+Recent single-cell studies increasingly focus on fine-grained cell states within cell lineages from clinical atlases. However, resolving these states is often hindered by residual batch effects inside each lineage. Removing such effects is essential, but conventional batch correction can overcorrect biologically meaningful signals because closely related cell states often share highly similar transcriptional profiles.
 
-**Key Challenges:**
-- **Residual Batch Effects**: Global batch correction lacks resolution, leaving batch effects in specific cell types
-- **Over-correction Risk**: High transcriptional similarity within subpopulations makes it difficult to distinguish technical noise from biological variation
-- **Manual Grouping Limitations**: The complexity of possible grouping combinations makes manual optimization impractical
-- **Cell Type Specificity**: Batch effects vary across different cell types, requiring distinct grouping strategies
+Existing methods usually correct batches in a pairwise or sample-wise manner. This strategy may introduce redundant correction between batches with minimal technical variation, thereby weakening subtle but meaningful cell-state differences. B2G was developed to reduce this risk by identifying groups of batches that are already largely free of batch effects and should therefore be corrected together rather than separately.
 
-### Solution: B2G Framework
+### Method Overview
 
-We propose **Batch2Group (B2G)**, which infers batch-effect-free groups based on clinical metadata to enable precise batch correction. B2G addresses these challenges through:
+**B2G** (Batch-to-Group) infers batch-effect-free groups by integrating clinical metadata with intrinsic single-cell data topology. B2G first evaluates clinical variables and selects informative priors with controls for confounding and collinearity. It then constructs metacells by combining these priors with intrinsic data topology, allowing robust comparison of batch-level cellular composition. Finally, B2G identifies batch-effect-free groups by quantifying metacell compositional similarity across batches: batches with highly concordant metacell proportions are grouped together, reflecting minimal residual batch effects within each group.
 
-1. **Adaptive Prior Selection**: Automatically evaluates and selects informative biological priors using PERMANOVA
-2. **Intelligent Grouping**: Identifies patients with similar clinical features that exhibit minimal batch effects
-3. **Dual Clustering Support**: Provides both metacell and Leiden clustering for flexible analysis
-4. **Group-level Correction**: Performs batch correction at group level rather than individual sample level
+The resulting B2G groups can be used as the correction key for downstream integration methods such as Harmony, scVI, Scanorama, or other batch-correction tools. In this way, B2G acts as a preprocessing framework that reduces redundant correction across homogeneous batches while preserving biologically meaningful variation within cell lineages.
 
-### Main Findings
+### Highlights
 
-Across multiple single-cell datasets, B2G demonstrates superior performance in:
-- **Better Batch Effect Removal**: More effective elimination of technical and batch effects
-- **Biological Variation Preservation**: Maintains genuine biological signals while removing technical noise
-- **Automated Workflow**: Eliminates need for manual trial-and-error in grouping strategy
-- **Scalable Analysis**: Efficiently handles large-scale longitudinal cohort data
+- **Clinical metadata-guided grouping**: B2G integrates clinical metadata with single-cell profiles to identify batch-effect-free groups within cell lineages.
+- **Biological signal preservation**: B2G improves preservation of fine-grained biological signals while removing technical variation.
+- **Scalable integration**: B2G reduces unnecessary correction across homogeneous batches and improves scalability for large clinical and laboratory datasets.
 
 ---
 
